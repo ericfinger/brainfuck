@@ -19,6 +19,7 @@ A simple brainfuck interpreter written in Rust.
 - [ ] Better I/O for tests
 - [ ] GUI?
 - [ ] Debugging capabilities (stepping, memory-state etc.)
+- [ ] Probably refactor into lib/mod
 
 ### Current State:
 
