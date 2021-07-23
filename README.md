@@ -7,7 +7,7 @@ A simple brainfuck interpreter written in Rust.
 - [X] Write Tests
 - [X] Rewrite in safe Rust
 - [X] Remove the panic by requiring a program in the constructor (thus preventing bad states)?
-- [ ] Refactor into mod
+- [X] Refactor into mod
 - [ ] Write documentation
 - [ ] Cache while-loop "jump points" (maybe even ahead of time?) (Would allow us to catch "openEndedWhile.bf" and "headlessWhile.bf" / mismatched brackets in general)
 - [ ] Add better comments to brainfuck files (ignore stuff after ; when parsing)
