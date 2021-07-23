@@ -1,0 +1,13 @@
+[package]
+name = "brainfuck"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+[profile.test]
+opt-level = 3 # tests still work but are really slow without this
