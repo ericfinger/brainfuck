@@ -1,10 +1,12 @@
 use std::io::{BufRead, Write};
 
+use bimap::BiMap;
 pub struct VM {
     program: String,
     pp: usize, // ProgramPointer
     mp: usize, // MemoryPointer
     data: Vec<u8>,
+    jump_map: BiMap<usize, usize>,
     #[cfg(test)]
     output: String,
 }
@@ -13,17 +15,30 @@ impl VM {
     pub fn new(program: &str) -> Self {
         // TODO: Dynamically grow this if needed & start with smaller defaults
         let data = vec![0; 1024];
+        let mut jump_map = BiMap::<usize, usize>::new();
+
+        if !Self::parse(program, &mut jump_map) {
+            // TODO: Give better Debug output
+            panic!("Mismatched Brackets!");
+        }
+
         Self {
             program: program.to_string(),
             pp: 0,
             mp: 0,
             data,
+            jump_map,
             #[cfg(test)]
             output: String::new(),
         }
     }
 
     pub fn load(&mut self, program: &str) {
+        if !Self::parse(program, &mut self.jump_map) {
+            // TODO: Give better ~~Debug~~ output
+            panic!("Mismatched Brackets!");
+        }
+
         self.program = program.to_string();
     }
 
@@ -90,59 +105,23 @@ impl VM {
                 '[' => {
                     // if *pointer == 0: goto end of while)
                     if self.data[self.mp] == 0 {
-                        let mut count: u32 = 0;
-                        // TODO: Cache jump points once we found the matching ']' for quicker repeats (loops in loops)?
-                        //       maybe even cache ALL jump points for all loops in the beginning of the program?? self.pp = address
-                        for x in self.pp + 1..self.program.len() {
-                            let current_char = self
-                                .program
-                                .chars()
-                                .nth(x)
-                                .expect("didn't find matching ']'!");
-
-                            if current_char == '[' {
-                                count += 1;
-                            }
-
-                            if current_char == ']' {
-                                if count == 0 {
-                                    self.pp = x + 1;
-                                    break;
-                                } else {
-                                    count -= 1;
-                                }
-                            }
-                        }
+                        self.pp = self
+                            .jump_map
+                            .get_by_left(&self.pp)
+                            .expect("Incorrect jumpmap?! Please report this error")
+                            + 1;
                     } else {
                         self.pp += 1;
                     }
                 }
                 ']' => {
                     // } (or "if *pointer != 0: goto start of while")
-                    // TODO: Rewrite so we add a "jump point" to a list when entering a while loop
-                    // and don't have to scan the program for the beginning '[' every time
                     if self.data[self.mp] != 0 {
-                        let mut count: u32 = 0;
-                        for x in 1..self.pp {
-                            let current_char = self
-                                .program
-                                .chars()
-                                .nth(self.pp - x)
-                                .expect("didn't find matching '['!");
-
-                            if current_char == ']' {
-                                count += 1;
-                            }
-
-                            if current_char == '[' {
-                                if count == 0 {
-                                    self.pp = (self.pp - x) + 1;
-                                    break;
-                                } else {
-                                    count -= 1;
-                                }
-                            }
-                        }
+                        self.pp = self
+                            .jump_map
+                            .get_by_right(&self.pp)
+                            .expect("Incorrect jumpmap?! Please report this error")
+                            + 1;
                     } else {
                         self.pp += 1;
                     }
@@ -152,6 +131,82 @@ impl VM {
                 }
             }
         }
+    }
+
+    // Parses the program and reports errors
+    // TODO: actually report errors & introduce Error Type
+    fn parse(program: &str, jump_map: &mut BiMap<usize, usize>) -> bool {
+        if !Self::check_brackets(program, jump_map) {
+            return false;
+        }
+
+        true
+    }
+
+    /// Checks if all '[' brackts have a matching ']' bracket.
+    /// Inserts the index of each '[' and it's matching ']' bracket into the given BiMap
+    fn check_brackets(program: &str, jump_map: &mut BiMap<usize, usize>) -> bool {
+        let mut count = 0;
+        let mut machting_bracket: Option<usize>;
+        for (i, op) in program.chars().enumerate() {
+            match op {
+                '[' => {
+                    machting_bracket = None;
+                    for (j, c) in program.chars().enumerate().skip(i + 1) {
+                        if c == '[' {
+                            count += 1;
+                        } else if c == ']' {
+                            if count == 0 {
+                                machting_bracket = Some(j);
+                                break;
+                            } else {
+                                count -= 1;
+                            }
+                        }
+                    }
+
+                    match machting_bracket {
+                        None => {
+                            return false;
+                        }
+                        Some(j) => {
+                            //println!("('[' at {}): Found matching Bracket ']' at {}", i, j);
+                            jump_map.insert(i, j);
+                        }
+                    }
+                }
+                ']' => {
+                    machting_bracket = None;
+                    for (j, c) in program.chars().rev().enumerate().skip(program.len() - i) {
+                        if c == ']' {
+                            count += 1;
+                        } else if c == '[' {
+                            if count == 0 {
+                                machting_bracket = Some(program.len() - j);
+                                break;
+                            } else {
+                                count -= 1;
+                            }
+                        }
+                    }
+
+                    match machting_bracket {
+                        None => {
+                            return false;
+                        }
+                        Some(_j) => {
+                            //println!("('[' at {}): Found matching Bracket ']' at {}", i, j);
+
+                            // Ignoring value for now bc we already added it in the open-Bracket loop
+                            // but might be useful for debugger later
+                        }
+                    }
+                }
+                _ => continue,
+            }
+        }
+
+        true
     }
 }
 
@@ -163,7 +218,6 @@ mod tests {
     fn reset() {
         let program = include_str!("../brainfuck_programs/hello_world_smol.bf");
         let mut vm = VM::new(program);
-        vm.load(program);
         vm.run();
 
         assert_eq!("hello world", vm.output);
@@ -183,6 +237,21 @@ mod tests {
     }
 
     #[test]
+    fn reset_reuse() {
+        let program = include_str!("../brainfuck_programs/hello_world_smol.bf");
+        let mut vm = VM::new(program);
+        vm.load(program);
+        vm.run();
+
+        assert_eq!("hello world", vm.output);
+
+        vm.reset();
+        let program = include_str!("../brainfuck_programs/yapi_4.bf");
+        vm.load(program);
+        vm.run();
+    }
+
+    #[test]
     fn no_program() {
         let mut vm = VM::new("");
         vm.run();
@@ -199,11 +268,33 @@ mod tests {
     }
 
     #[test]
+    fn layered_brackets() {
+        let program = include_str!("../brainfuck_programs/layeredBracketsTest.bf");
+        let mut vm = VM::new(program);
+        vm.run();
+    }
+
+    #[test]
+    #[should_panic]
+    fn open_ended_while() {
+        let program = include_str!("../brainfuck_programs/openEndedWhile.bf");
+        let mut vm = VM::new(program);
+        vm.run();
+    }
+
+    #[test]
+    #[should_panic]
+    fn headless_while() {
+        let program = include_str!("../brainfuck_programs/headlessWhile.bf");
+        let mut vm = VM::new(program);
+        vm.run();
+    }
+
+    #[test]
     #[should_panic]
     fn mem_pointer_underflow() {
         let program = include_str!("../brainfuck_programs/underflowMP.bf");
         let mut vm = VM::new(program);
-        vm.load(program);
         vm.run();
     }
 
@@ -213,7 +304,6 @@ mod tests {
         // TODO: replace this (with an "out of memory check") when we implement dynamic memory sizes
         let program = include_str!("../brainfuck_programs/overflowMP.bf");
         let mut vm = VM::new(program);
-        vm.load(program);
         vm.run();
     }
 
@@ -221,7 +311,6 @@ mod tests {
     fn hello_world() {
         let program = include_str!("../brainfuck_programs/hello_world.bf");
         let mut vm = VM::new(program);
-        vm.load(program);
         vm.run();
 
         // Super fucking weird, why tf is it \n\r??? It's from https://de.wikipedia.org/wiki/Brainfuck
@@ -232,7 +321,6 @@ mod tests {
     fn hello_world_smol() {
         let program = include_str!("../brainfuck_programs/hello_world_smol.bf");
         let mut vm = VM::new(program);
-        vm.load(program);
         vm.run();
 
         assert_eq!("hello world", vm.output);
@@ -243,7 +331,6 @@ mod tests {
         // "Hello world from hell": https://github.com/rdebath/Brainfuck/blob/master/bitwidth.b
         let program = include_str!("../brainfuck_programs/hell.bf");
         let mut vm = VM::new(program);
-        vm.load(program);
         vm.run();
 
         assert_eq!("Hello World! 255\n", vm.output);
@@ -253,7 +340,6 @@ mod tests {
     fn squares() {
         let program = include_str!("../brainfuck_programs/squares.bf");
         let mut vm = VM::new(program);
-        vm.load(program);
         vm.run();
 
         let should_be = include_str!("../brainfuck_programs/squares_output_correct.txt");
@@ -265,7 +351,6 @@ mod tests {
         // Written by Erik Bosman
         let program = include_str!("../brainfuck_programs/quine.bf");
         let mut vm = VM::new(program);
-        vm.load(program);
         vm.run();
 
         assert_eq!(program, vm.output);
@@ -275,7 +360,6 @@ mod tests {
     fn obscure() {
         let program = include_str!("../brainfuck_programs/obscure.bf");
         let mut vm = VM::new(program);
-        vm.load(program);
         vm.run();
 
         assert_eq!("H\n", vm.output);
@@ -285,7 +369,6 @@ mod tests {
     fn fibonacci() {
         let program = include_str!("../brainfuck_programs/fibonacci.bf");
         let mut vm = VM::new(program);
-        vm.load(program);
         vm.run();
 
         // yes those are wrong, but that's the programs fault. These numbers are from https://copy.sh/brainfuck which I assume is correct

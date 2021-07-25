@@ -8,14 +8,15 @@ A simple brainfuck interpreter written in Rust.
 - [X] Rewrite in safe Rust
 - [X] Remove the panic by requiring a program in the constructor (thus preventing bad states)?
 - [X] Refactor into mod
-- [ ] Write documentation
-- [ ] Cache while-loop "jump points" (maybe even ahead of time?) (Would allow us to catch "openEndedWhile.bf" and "headlessWhile.bf" / mismatched brackets in general)
-- [ ] Add better comments to brainfuck files (ignore stuff after ; when parsing)
+- [X] Cache while-loop "jump points" (maybe even ahead of time?) (Would allow us to catch "openEndedWhile.bf" and "headlessWhile.bf" / mismatched brackets in general)
+- [ ] Parse programs / allow comments in brainfuck files (ignore stuff after ; when parsing)
 - [ ] Better Error-handling, backtraces for when bf programs crash etc.
 - [ ] Dynamically grow Memory/prevent overflow of Memory Pointer
-- [ ] Add support for different cell sizes
+- [ ] Write documentation
 - [ ] UI, loading Programms at runtime
-- [ ] Run profiler to check performance, mb unsafe is faster?
+- [ ] Add support for different cell sizes
+- [ ] Add better debug-output/logging
+- [ ] Run profiler to check performance, mb unsafe is faster? Mb no Bimap was better (X to Doubt)
 - [ ] Better I/O for stuff like wc.bf or rot13.bf
 - [ ] Better I/O for tests
 - [ ] GUI?
