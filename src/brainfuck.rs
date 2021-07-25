@@ -52,6 +52,8 @@ impl VM {
 
     pub fn run(&mut self) {
         while self.pp < self.program.len() {
+            // TODO: after parsing (& therefore making sure our program is only ascii symbols) we should
+            //       index into program.as_bytes (or mb even turn the program into a vector?) for speed
             match self
                 .program
                 .chars()
