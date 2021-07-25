@@ -44,6 +44,7 @@ impl VM {
 
     pub fn reset(&mut self) {
         self.pp = 0;
+        self.mp = 0;
         self.data.fill(0);
         #[cfg(test)]
         self.output.clear();
