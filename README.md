@@ -22,11 +22,10 @@ A simple brainfuck interpreter written in Rust.
 - [ ] GUI?
 - [ ] Debugging capabilities (stepping, memory-state etc.)
 
-### Current State:
+### Current State/Issues:
 
 - Has no UI
 - Can therefore only run hard-coded brainfuck
-- Does not handle mismatched While loops (Hangs or crashes)
 - Does ignore any non-opcode instructions but does not respect comments (lines starting with ; or // or # etc)
 - Has a default (hard-coded) & fixed memory-size of 1KB
 - A cell is a byte per brainfuck "spec" (8 bits)
