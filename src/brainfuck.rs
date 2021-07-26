@@ -47,7 +47,7 @@ impl VM {
     /// Needs to reload the program since it's parsed on load.
     /// TODO: Maybe save 'original' Program so we don't need to reload?
     #[allow(dead_code)]
-    pub fn disable_commen_parsing(&mut self, program: &str) {
+    pub fn disable_comment_parsing(&mut self, program: &str) {
         self.ignore_comments = false;
         self.load(program);
     }
@@ -56,7 +56,7 @@ impl VM {
     /// Needs to reload the program since it's parsed on load.
     /// TODO: Maybe save 'original' Program so we don't need to reload?
     #[allow(dead_code)]
-    pub fn enable_commen_parsing(&mut self, program: &str) {
+    pub fn enable_comment_parsing(&mut self, program: &str) {
         self.ignore_comments = true;
         self.load(program);
     }
@@ -380,7 +380,7 @@ mod tests {
     fn comment_not_ignored() {
         let program = include_str!("../brainfuck_programs/comments_ignored_semipound.bf");
         let mut vm = VM::new(program);
-        vm.disable_commen_parsing(program);
+        vm.disable_comment_parsing(program);
         vm.run();
 
         assert_ne!("!", vm.output);
@@ -410,7 +410,7 @@ mod tests {
         // "Hello world from hell": https://github.com/rdebath/Brainfuck/blob/master/bitwidth.b
         let program = include_str!("../brainfuck_programs/hell.bf");
         let mut vm = VM::new(program);
-        vm.disable_commen_parsing(program);
+        vm.disable_comment_parsing(program);
         vm.run();
 
         assert_eq!("Hello World! 255\n", vm.output);
@@ -440,7 +440,7 @@ mod tests {
     fn obscure() {
         let program = include_str!("../brainfuck_programs/obscure.bf");
         let mut vm = VM::new(program);
-        vm.disable_commen_parsing(program);
+        vm.disable_comment_parsing(program);
         vm.run();
 
         assert_eq!("H\n", vm.output);
