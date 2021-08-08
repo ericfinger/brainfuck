@@ -3,8 +3,8 @@ use std::io::{BufRead, Write};
 use rustc_hash::FxHashMap;
 pub struct VM {
     program: Vec<u8>,
-    pp: usize,        // ProgramPointer
-    mp: usize,        // MemoryPointer
+    pp: usize, // ProgramPointer
+    mp: usize, // MemoryPointer
     data: Vec<u8>,
     jump_map: FxHashMap<usize, usize>,
     // TODO: move these to some kind of config:
@@ -178,11 +178,13 @@ impl VM {
                             // Number Arithmetic
                             if op & 0b00100000 == 0 {
                                 // Minus
-                                self.data[self.mp] = self.data[self.mp].wrapping_sub((op & 0b00011111) + 1);
+                                self.data[self.mp] =
+                                    self.data[self.mp].wrapping_sub((op & 0b00011111) + 1);
                                 self.pp += 1;
                             } else {
                                 // Plus
-                                self.data[self.mp] = self.data[self.mp].wrapping_add((op & 0b00011111) + 1);
+                                self.data[self.mp] =
+                                    self.data[self.mp].wrapping_add((op & 0b00011111) + 1);
                                 self.pp += 1;
                             }
                         }
@@ -269,12 +271,7 @@ impl VM {
 
                 b']' => {
                     let mut matching_bracket: bool = false;
-                    for c in self
-                        .program
-                        .iter()
-                        .rev()
-                        .skip(self.program.len() - i)
-                    {
+                    for c in self.program.iter().rev().skip(self.program.len() - i) {
                         if *c == ']' as u8 {
                             count += 1;
                         } else if *c == '[' as u8 {
@@ -334,15 +331,26 @@ impl VM {
     }
 
     /// Pushes the special instruction for successive operands.
-    fn push_special_instruction(&mut self, current_pos: usize, operator: u8, instruction_mask: u8, program: &Vec<u8>) -> usize {
+    fn push_special_instruction(
+        &mut self,
+        current_pos: usize,
+        operator: u8,
+        instruction_mask: u8,
+        program: &Vec<u8>,
+    ) -> usize {
         let mut skip = 0;
-        if (program.len() - current_pos) > 1 { // makes sure we don't try to lookup program [i + 1] if that's oob
+        if (program.len() - current_pos) > 1 {
+            // makes sure we don't try to lookup program [i + 1] if that's oob
             if program[current_pos + 1] == operator {
                 let mut count;
-                match program.iter().skip(current_pos).position(|op| *op != operator) {
+                match program
+                    .iter()
+                    .skip(current_pos)
+                    .position(|op| *op != operator)
+                {
                     Some(x) => {
                         count = x;
-                    },
+                    }
 
                     None => {
                         count = program.len() - current_pos;
@@ -520,7 +528,10 @@ mod tests {
         let mut vm = VM::new(program);
         vm.enable_optimizer(program);
         vm.run();
-        let optimized_program = vec![0b11100100, 0b11000100, 0b10100100, 0b10000100, b'+', b'-', b'>', b'<', 0b11100100, 0b11000100, 0b10100010, b'+', 0b10100001, 0b11000001, b'<', 0b11000001];
+        let optimized_program = vec![
+            0b11100100, 0b11000100, 0b10100100, 0b10000100, b'+', b'-', b'>', b'<', 0b11100100,
+            0b11000100, 0b10100010, b'+', 0b10100001, 0b11000001, b'<', 0b11000001,
+        ];
         let optimized_program: String = optimized_program.iter().map(|op| *op as char).collect();
         assert_eq!(vm.get_program(), optimized_program);
     }
