@@ -85,6 +85,6 @@ I realized there is no reason to use bimap, we can just use one Hashmap and add 
 
 -> Consider/Try a BTreeMap or Changing the Hash Algo of Hashmap, try:
 - [FxHash (rustc-hash)](https://lib.rs/crates/rustc-hash)
-- [ahash]([ahash](https://lib.rs/crates/ahash))
+- [ahash](https://lib.rs/crates/ahash)
 
 

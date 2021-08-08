@@ -1,12 +1,12 @@
 use std::io::{BufRead, Write};
 
-use bimap::BiMap;
+use rustc_hash::FxHashMap;
 pub struct VM {
     program: Vec<u8>,
     pp: usize,        // ProgramPointer
     mp: usize,        // MemoryPointer
     data: Vec<u8>,
-    jump_map: BiMap<usize, usize>,
+    jump_map: FxHashMap<usize, usize>,
     // TODO: move this to some kind of config:
     ignore_comments: bool, // wether we should ignore comments (obscure.bf and hell.bf use ';' as non-comment chars)
     #[cfg(test)]
@@ -20,7 +20,7 @@ impl VM {
             pp: 0,
             mp: 0,
             data: vec![0; 1024], // TODO: Dynamically grow this (static analysis of program possible??) if needed & start with smaller defaults
-            jump_map: BiMap::<usize, usize>::new(),
+            jump_map: FxHashMap::default(),
             ignore_comments: true,
             #[cfg(test)]
             output: String::new(),
@@ -122,7 +122,7 @@ impl VM {
                     if self.data[self.mp] == 0 {
                         self.pp = self
                             .jump_map
-                            .get_by_left(&self.pp)
+                            .get(&self.pp)
                             .expect("Incorrect jumpmap?! Please report this error")
                             + 1;
                     } else {
@@ -135,7 +135,7 @@ impl VM {
                     if self.data[self.mp] != 0 {
                         self.pp = self
                             .jump_map
-                            .get_by_right(&self.pp)
+                            .get(&self.pp)
                             .expect("Incorrect jumpmap?! Please report this error")
                             + 1;
                     } else {
@@ -182,17 +182,17 @@ impl VM {
     /// Inserts the index of each '[' and it's matching ']' bracket into the given BiMap
     fn check_brackets(&mut self) -> bool {
         let mut count = 0;
-        let mut machting_bracket: Option<usize>;
+        let mut matching_bracket: Option<usize>;
         for (i, op) in self.program.iter().enumerate() {
             match op {
                 b'[' => {
-                    machting_bracket = None;
+                    matching_bracket = None;
                     for (j, c) in self.program.iter().enumerate().skip(i + 1) {
                         if *c == b'[' as u8 {
                             count += 1;
                         } else if *c == b']' as u8 {
                             if count == 0 {
-                                machting_bracket = Some(j);
+                                matching_bracket = Some(j);
                                 break;
                             } else {
                                 count -= 1;
@@ -200,30 +200,30 @@ impl VM {
                         }
                     }
 
-                    match machting_bracket {
+                    match matching_bracket {
                         None => {
                             return false;
                         }
                         Some(j) => {
                             self.jump_map.insert(i, j);
+                            self.jump_map.insert(j, i);
                         }
                     }
                 }
 
                 b']' => {
-                    machting_bracket = None;
-                    for (j, c) in self
+                    let mut matching_bracket: bool = false;
+                    for c in self
                         .program
                         .iter()
                         .rev()
-                        .enumerate()
                         .skip(self.program.len() - i)
                     {
                         if *c == ']' as u8 {
                             count += 1;
                         } else if *c == '[' as u8 {
                             if count == 0 {
-                                machting_bracket = Some(self.program.len() - j);
+                                matching_bracket = true;
                                 break;
                             } else {
                                 count -= 1;
@@ -231,14 +231,8 @@ impl VM {
                         }
                     }
 
-                    match machting_bracket {
-                        None => {
-                            return false;
-                        }
-                        Some(_j) => {
-                            // Ignoring value for now bc we already added it in the open-Bracket loop
-                            // but might be useful for debugger later
-                        }
+                    if !matching_bracket {
+                        return false;
                     }
                 }
 
