@@ -59,23 +59,25 @@ opcode bytes:
      CAO
 x+ = 111XXXXX
 x- = 110XXXXX
-x< = 101XXXXX
-x> = 100XXXXX
+x> = 101XXXXX
+x< = 100XXXXX
 ```
 
 ``C = Control, A = Arithmetic, O = Option``
 
--> Leaves us 5 bits of storage for "times", starting with 0 = 2 that means:
+-> Leaves us 5 bits of storage for "times", ~~starting with 0 = 2~~ starting with 1 that means:
 
 ```
-11100000 = add(2)
-11100101 = add(7)
-11111111 = add (33)
+11100000 = add(1)
+11100101 = add(6)
+11111111 = add (32)
 ```
 
 We can get the last 5 bits with a fast bitmask: ``X= 111XXXXX & 00011111``
 
-We could also say that if ``add(33) = 11111110 + '+'`` then ``11111111`` means we treat the next 8 bits as one number to be added, if that's also ``11111111`` then we also consider the next 8 bits etc.
+We could also say that if ``add(32) = 11111110 + '+'`` then ``11111111`` means we treat the next 8 bits as one number to be added, if that's also ``11111111`` then we also consider the next 8 bits etc.
+
+-> for now this is implemented in consecutive junks of ``add(32)`` because it's easy and I dont't really see the need for the other options. I simply don't have programs that have that many repeating instructions without using a loop of some kind
 
 ## 2. Performance improvements
 

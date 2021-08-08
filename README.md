@@ -10,6 +10,11 @@ A brainfuck interpreter written in Rust.
 - [X] Refactor into mod
 - [X] Cache while-loop "jump points"
 - [X] Parse programs / allow comments in brainfuck files (ignore stuff after ';' and '#' when parsing)
+- [X] Possible Optimizations (with toggle option?):
+  - [X] Collect successive ops ("++++<" = "add(4)<" etc.) (Would save cycles)
+  - [ ] ~~While Loop unroll? (Would eradicate ALL jumps and therefore the Program Vec + Jumpmap)~~
+  - [ ] Simple pattern matching ("[-]" = "*mp = 0") (Manual labor)
+  - [ ] ~~Remove never entered Loops (meh)~~
 - [ ] Better Error-handling, backtraces for when bf programs crash etc.
 - [ ] Better config management (Disable comments etc)
 - [ ] Dynamically grow Memory/prevent overflow of Memory Pointer (we can statically find the needed size by analysing the program?)
@@ -21,11 +26,6 @@ A brainfuck interpreter written in Rust.
 - [ ] Better I/O for stuff like wc.bf or rot13.bf
 - [ ] Better I/O for tests
 - [ ] Debugging capabilities (stepping, memory-state etc.)
-- [ ] Possible Optimizations (with toggle option?):
-  - [ ] Collect successive ops ("++++<" = "add(4)<" etc.) (Would save cycles)
-  - [ ] While Loop unroll? (Would eradicate ALL jumps and therefore the Program Vec + Jumpmap)
-  - [ ] Simple pattern matching ("[-]" = "*mp = 0") (Manual labor)
-  - [ ] Remove never entered Loops (meh)
 - [ ] GUI?
 - [ ] Visualizer?
 

@@ -7,8 +7,9 @@ pub struct VM {
     mp: usize,        // MemoryPointer
     data: Vec<u8>,
     jump_map: FxHashMap<usize, usize>,
-    // TODO: move this to some kind of config:
+    // TODO: move these to some kind of config:
     ignore_comments: bool, // wether we should ignore comments (obscure.bf and hell.bf use ';' as non-comment chars)
+    optimize: bool,
     #[cfg(test)]
     output: String,
 }
@@ -22,6 +23,7 @@ impl VM {
             data: vec![0; 1024], // TODO: Dynamically grow this (static analysis of program possible??) if needed & start with smaller defaults
             jump_map: FxHashMap::default(),
             ignore_comments: true,
+            optimize: false,
             #[cfg(test)]
             output: String::new(),
         };
@@ -58,6 +60,18 @@ impl VM {
     #[allow(dead_code)]
     pub fn enable_comment_parsing(&mut self, program: &str) {
         self.ignore_comments = true;
+        self.load(program);
+    }
+
+    #[allow(dead_code)]
+    pub fn enable_optimizer(&mut self, program: &str) {
+        self.optimize = true;
+        self.load(program);
+    }
+
+    #[allow(dead_code)]
+    pub fn disable_optimizer(&mut self, program: &str) {
+        self.optimize = false;
         self.load(program);
     }
 
@@ -143,20 +157,56 @@ impl VM {
                     }
                 }
                 _ => {
-                    self.pp += 1;
+                    if self.program[self.pp] & 0b10000000 == 0 {
+                        // Shouldn't happen after parsing
+                        panic!("Parsing silently failed?");
+                        //self.pp += 1;
+                    } else {
+                        let op = self.program[self.pp];
+                        if op & 0b01000000 == 0 {
+                            // Pointer Arithmetic
+                            if op & 0b00100000 == 0 {
+                                // Pointer Minus
+                                self.mp -= ((op & 0b00011111) + 1) as usize;
+                                self.pp += 1;
+                            } else {
+                                // Pointer Plus
+                                self.mp += ((op & 0b00011111) + 1) as usize;
+                                self.pp += 1;
+                            }
+                        } else {
+                            // Number Arithmetic
+                            if op & 0b00100000 == 0 {
+                                // Minus
+                                self.data[self.mp] = self.data[self.mp].wrapping_sub((op & 0b00011111) + 1);
+                                self.pp += 1;
+                            } else {
+                                // Plus
+                                self.data[self.mp] = self.data[self.mp].wrapping_add((op & 0b00011111) + 1);
+                                self.pp += 1;
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 
+    #[cfg(test)]
+    pub fn get_program(&self) -> String {
+        let program: String = self.program.iter().map(|op| *op as char).collect();
+        program
+    }
+
     /// Parses the program and reports errors
     /// TODO: actually report errors & introduce Error Type
     fn parse(&mut self, program: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let mut parsed_program: Vec<u8> = Vec::new();
         for line in program.lines() {
             for c in line.chars() {
                 match c {
                     '<' | '>' | '+' | '-' | '[' | ']' | '.' | ',' => {
-                        self.program.push(c as u8);
+                        parsed_program.push(c as u8);
                     }
 
                     ';' | '#' => {
@@ -169,6 +219,12 @@ impl VM {
                     _ => continue,
                 }
             }
+        }
+
+        if self.optimize {
+            self.optimize_successive(parsed_program);
+        } else {
+            self.program = parsed_program;
         }
 
         if !self.check_brackets() {
@@ -242,6 +298,76 @@ impl VM {
 
         true
     }
+
+    /// Optimizes successive '+' '-' '>' and '<' calls by combining them.
+    /// For Example, '++++' would turn into something like add(4).
+    fn optimize_successive(&mut self, program: Vec<u8>) {
+        let mut skip = 0;
+        for (i, op) in program.iter().enumerate() {
+            if skip > 0 {
+                skip -= 1;
+                continue;
+            }
+
+            match op {
+                b'+' => {
+                    skip = self.push_special_instruction(i, *op, 0b11100000, &program);
+                }
+
+                b'-' => {
+                    skip = self.push_special_instruction(i, *op, 0b11000000, &program);
+                }
+
+                b'>' => {
+                    skip = self.push_special_instruction(i, *op, 0b10100000, &program);
+                }
+
+                b'<' => {
+                    skip = self.push_special_instruction(i, *op, 0b10000000, &program);
+                }
+
+                _ => {
+                    self.program.push(*op);
+                }
+            }
+        }
+    }
+
+    /// Pushes the special instruction for successive operands.
+    fn push_special_instruction(&mut self, current_pos: usize, operator: u8, instruction_mask: u8, program: &Vec<u8>) -> usize {
+        let mut skip = 0;
+        if (program.len() - current_pos) > 1 { // makes sure we don't try to lookup program [i + 1] if that's oob
+            if program[current_pos + 1] == operator {
+                let mut count;
+                match program.iter().skip(current_pos).position(|op| *op != operator) {
+                    Some(x) => {
+                        count = x;
+                    },
+
+                    None => {
+                        count = program.len() - current_pos;
+                    }
+                }
+
+                skip = count - 1;
+
+                while count > 32 {
+                    self.program.push(instruction_mask | (32 - 1) as u8);
+                    count -= 32;
+                }
+
+                if count != 0 {
+                    self.program.push(instruction_mask | (count - 1) as u8);
+                }
+            } else {
+                self.program.push(operator)
+            }
+        } else {
+            self.program.push(operator)
+        }
+
+        skip
+    }
 }
 
 #[cfg(test)]
@@ -251,15 +377,15 @@ mod tests {
     #[test]
     fn reset() {
         let program = include_str!("../brainfuck_programs/hello_world_smol.bf");
-        let program_vec: Vec<u8> = program.chars().map(|c| c as u8).collect();
         let mut vm = VM::new(program);
+        let program_pre_reset = vm.get_program();
 
         vm.run();
 
         assert_eq!("hello world", vm.output);
 
         vm.reset();
-        assert_eq!(program_vec, vm.program);
+        assert_eq!(program_pre_reset, vm.get_program());
         assert_eq!("", vm.output);
         assert_eq!(0, vm.pp);
 
@@ -381,6 +507,25 @@ mod tests {
     }
 
     #[test]
+    fn last_char_is_plus() {
+        let program = include_str!("../brainfuck_programs/ends_on_plus.bf");
+        let mut vm = VM::new(program);
+        vm.enable_optimizer(program);
+        vm.run();
+    }
+
+    #[test]
+    fn optimizer() {
+        let program = include_str!("../brainfuck_programs/optimize_me.bf");
+        let mut vm = VM::new(program);
+        vm.enable_optimizer(program);
+        vm.run();
+        let optimized_program = vec![0b11100100, 0b11000100, 0b10100100, 0b10000100, b'+', b'-', b'>', b'<', 0b11100100, 0b11000100, 0b10100010, b'+', 0b10100001, 0b11000001, b'<', 0b11000001];
+        let optimized_program: String = optimized_program.iter().map(|op| *op as char).collect();
+        assert_eq!(vm.get_program(), optimized_program);
+    }
+
+    #[test]
     fn hello_world() {
         let program = include_str!("../brainfuck_programs/hello_world.bf");
         let mut vm = VM::new(program);
@@ -405,6 +550,12 @@ mod tests {
         let program = include_str!("../brainfuck_programs/hell.bf");
         let mut vm = VM::new(program);
         vm.disable_comment_parsing(program);
+        vm.run();
+
+        assert_eq!("Hello World! 255\n", vm.output);
+
+        vm.reset();
+        vm.enable_optimizer(program);
         vm.run();
 
         assert_eq!("Hello World! 255\n", vm.output);
@@ -438,6 +589,12 @@ mod tests {
         vm.run();
 
         assert_eq!("H\n", vm.output);
+
+        vm.reset();
+        vm.enable_optimizer(program);
+        vm.run();
+
+        assert_eq!("H\n", vm.output);
     }
 
     #[test]
@@ -447,6 +604,15 @@ mod tests {
         vm.run();
 
         // yes those are wrong, but that's the programs fault. These numbers are from https://copy.sh/brainfuck which I assume is correct
+        assert_eq!(
+            "1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 121, 98, 219, ...",
+            vm.output
+        );
+
+        vm.reset();
+        vm.enable_optimizer(program);
+        vm.run();
+
         assert_eq!(
             "1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 121, 98, 219, ...",
             vm.output
