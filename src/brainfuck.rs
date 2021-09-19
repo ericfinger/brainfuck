@@ -1,6 +1,29 @@
 use std::io::{BufRead, Write};
 
+#[cfg(test)]
+use newline_converter::dos2unix;
+
 use rustc_hash::FxHashMap;
+
+#[derive(Debug)]
+pub struct VMOptions {
+    pub program: String,
+    pub disable_optimizer: bool,
+    pub disable_comments: bool,
+}
+
+#[cfg(test)]
+impl VMOptions {
+    #[cfg(test)]
+    fn default(program: String) -> VMOptions {
+        VMOptions {
+            program,
+            disable_comments: false,
+            disable_optimizer: true,
+        }
+    }
+}
+
 pub struct VM {
     program: Vec<u8>,
     pp: usize, // ProgramPointer
@@ -15,28 +38,30 @@ pub struct VM {
 }
 
 impl VM {
-    pub fn new(program: &str) -> Self {
+    pub fn new(options: VMOptions) -> Self {
         let mut vm = Self {
             program: Vec::<u8>::new(),
             pp: 0,
             mp: 0,
             data: vec![0; 1024], // TODO: Dynamically grow this (static analysis of program possible??) if needed & start with smaller defaults
             jump_map: FxHashMap::default(),
-            ignore_comments: true,
-            optimize: false,
+            ignore_comments: !options.disable_comments,
+            optimize: !options.disable_optimizer,
             #[cfg(test)]
             output: String::new(),
         };
 
-        vm.parse(program).expect("Couldn't parse program");
+        vm.parse(options.program).expect("Couldn't parse program");
         vm
     }
 
-    pub fn load(&mut self, program: &str) {
+    #[cfg(test)]
+    pub fn load(&mut self, program: String) {
         self.program.clear();
         self.parse(program).expect("Couldn't parse program");
     }
 
+    #[allow(dead_code)]
     pub fn reset(&mut self) {
         self.pp = 0;
         self.mp = 0;
@@ -45,34 +70,18 @@ impl VM {
         self.output.clear();
     }
 
-    /// Turns comment parsing off, meaning ';' and '#' no longer end the line.
-    /// Needs to reload the program since it's parsed on load.
-    /// TODO: Maybe save 'original' Program so we don't need to reload?
-    #[allow(dead_code)]
-    pub fn disable_comment_parsing(&mut self, program: &str) {
-        self.ignore_comments = false;
-        self.load(program);
-    }
-
-    /// Turns comment parsing back on, meaning ';' and '#' end the line.
-    /// Needs to reload the program since it's parsed on load.
-    /// TODO: Maybe save 'original' Program so we don't need to reload?
-    #[allow(dead_code)]
-    pub fn enable_comment_parsing(&mut self, program: &str) {
-        self.ignore_comments = true;
-        self.load(program);
-    }
-
+    #[cfg(test)]
     #[allow(dead_code)]
     pub fn enable_optimizer(&mut self, program: &str) {
         self.optimize = true;
-        self.load(program);
+        self.load(program.to_string());
     }
 
+    #[cfg(test)]
     #[allow(dead_code)]
     pub fn disable_optimizer(&mut self, program: &str) {
         self.optimize = false;
-        self.load(program);
+        self.load(program.to_string());
     }
 
     pub fn run(&mut self) {
@@ -202,7 +211,7 @@ impl VM {
 
     /// Parses the program and reports errors
     /// TODO: actually report errors & introduce Error Type
-    fn parse(&mut self, program: &str) -> Result<(), Box<dyn std::error::Error>> {
+    fn parse(&mut self, program: String) -> Result<(), Box<dyn std::error::Error>> {
         let mut parsed_program: Vec<u8> = Vec::new();
         for line in program.lines() {
             for c in line.chars() {
@@ -236,8 +245,8 @@ impl VM {
         Ok(())
     }
 
-    /// Checks if all '[' brackts have a matching ']' bracket.
-    /// Inserts the index of each '[' and it's matching ']' bracket into the given BiMap
+    /// Checks if all ``[`` brackets have a matching ``]`` bracket.
+    /// Inserts the index of each ``[`` and it's matching ``]`` bracket into ``self.jump_map``
     fn check_brackets(&mut self) -> bool {
         let mut count = 0;
         let mut matching_bracket: Option<usize>;
@@ -385,7 +394,7 @@ mod tests {
     #[test]
     fn reset() {
         let program = include_str!("../brainfuck_programs/hello_world_smol.bf");
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(VMOptions::default(program.to_string()));
         let program_pre_reset = vm.get_program();
 
         vm.run();
@@ -409,21 +418,21 @@ mod tests {
     #[test]
     fn reset_reuse() {
         let program = include_str!("../brainfuck_programs/hello_world_smol.bf");
-        let mut vm = VM::new(program);
-        vm.load(program);
+        let mut vm = VM::new(VMOptions::default(program.to_string()));
+        vm.load(program.to_string());
         vm.run();
 
         assert_eq!("hello world", vm.output);
 
         vm.reset();
         let program = include_str!("../brainfuck_programs/yapi_4.bf");
-        vm.load(program);
+        vm.load(program.to_string());
         vm.run();
     }
 
     #[test]
     fn no_program() {
-        let mut vm = VM::new("");
+        let mut vm = VM::new(VMOptions::default("".to_string()));
         vm.run();
 
         assert!(vm.output.is_empty() && vm.pp == 0 && vm.mp == 0);
@@ -440,7 +449,7 @@ mod tests {
     #[test]
     fn layered_brackets() {
         let program = include_str!("../brainfuck_programs/layeredBracketsTest.bf");
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(VMOptions::default(program.to_string()));
         vm.run();
     }
 
@@ -448,7 +457,7 @@ mod tests {
     #[should_panic]
     fn open_ended_while() {
         let program = include_str!("../brainfuck_programs/openEndedWhile.bf");
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(VMOptions::default(program.to_string()));
         vm.run();
     }
 
@@ -456,7 +465,7 @@ mod tests {
     #[should_panic]
     fn headless_while() {
         let program = include_str!("../brainfuck_programs/headlessWhile.bf");
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(VMOptions::default(program.to_string()));
         vm.run();
     }
 
@@ -464,7 +473,7 @@ mod tests {
     #[should_panic]
     fn mem_pointer_underflow() {
         let program = include_str!("../brainfuck_programs/underflowMP.bf");
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(VMOptions::default(program.to_string()));
         vm.run();
     }
 
@@ -473,14 +482,14 @@ mod tests {
     fn mem_pointer_overflow() {
         // TODO: replace this (with an "out of memory check") when we implement dynamic memory sizes
         let program = include_str!("../brainfuck_programs/overflowMP.bf");
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(VMOptions::default(program.to_string()));
         vm.run();
     }
 
     #[test]
     fn comment_semicolon_ignored() {
         let program = include_str!("../brainfuck_programs/comments_ignored_semicolon.bf");
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(VMOptions::default(program.to_string()));
         vm.run();
 
         assert_eq!("!", vm.output);
@@ -489,7 +498,7 @@ mod tests {
     #[test]
     fn comment_poundsign_ignored() {
         let program = include_str!("../brainfuck_programs/comments_ignored_poundsign.bf");
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(VMOptions::default(program.to_string()));
         vm.run();
 
         assert_eq!("!", vm.output);
@@ -498,7 +507,7 @@ mod tests {
     #[test]
     fn comment_semipound_ignored() {
         let program = include_str!("../brainfuck_programs/comments_ignored_semipound.bf");
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(VMOptions::default(program.to_string()));
         vm.run();
 
         assert_eq!("!", vm.output);
@@ -507,8 +516,12 @@ mod tests {
     #[test]
     fn comment_not_ignored() {
         let program = include_str!("../brainfuck_programs/comments_ignored_semipound.bf");
-        let mut vm = VM::new(program);
-        vm.disable_comment_parsing(program);
+        let options = VMOptions {
+            program: program.to_string(),
+            disable_comments: true,
+            disable_optimizer: true,
+        };
+        let mut vm = VM::new(options);
         vm.run();
 
         assert_ne!("!", vm.output);
@@ -517,7 +530,7 @@ mod tests {
     #[test]
     fn last_char_is_plus() {
         let program = include_str!("../brainfuck_programs/ends_on_plus.bf");
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(VMOptions::default(program.to_string()));
         vm.enable_optimizer(program);
         vm.run();
     }
@@ -525,8 +538,12 @@ mod tests {
     #[test]
     fn optimizer() {
         let program = include_str!("../brainfuck_programs/optimize_me.bf");
-        let mut vm = VM::new(program);
-        vm.enable_optimizer(program);
+        let options = VMOptions {
+            program: program.to_string(),
+            disable_optimizer: false,
+            disable_comments: false,
+        };
+        let mut vm = VM::new(options);
         vm.run();
         let optimized_program = vec![
             0b11100100, 0b11000100, 0b10100100, 0b10000100, b'+', b'-', b'>', b'<', 0b11100100,
@@ -539,7 +556,7 @@ mod tests {
     #[test]
     fn hello_world() {
         let program = include_str!("../brainfuck_programs/hello_world.bf");
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(VMOptions::default(program.to_string()));
         vm.run();
 
         // Super fucking weird, why tf is it \n\r??? It's from https://de.wikipedia.org/wiki/Brainfuck
@@ -549,7 +566,7 @@ mod tests {
     #[test]
     fn hello_world_smol() {
         let program = include_str!("../brainfuck_programs/hello_world_smol.bf");
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(VMOptions::default(program.to_string()));
         vm.run();
 
         assert_eq!("hello world", vm.output);
@@ -559,8 +576,12 @@ mod tests {
     fn hell() {
         // "Hello world from hell": https://github.com/rdebath/Brainfuck/blob/master/bitwidth.b
         let program = include_str!("../brainfuck_programs/hell.bf");
-        let mut vm = VM::new(program);
-        vm.disable_comment_parsing(program);
+        let options = VMOptions {
+            program: program.to_string(),
+            disable_comments: true,
+            disable_optimizer: true,
+        };
+        let mut vm = VM::new(options);
         vm.run();
 
         assert_eq!("Hello World! 255\n", vm.output);
@@ -575,10 +596,11 @@ mod tests {
     #[test]
     fn squares() {
         let program = include_str!("../brainfuck_programs/squares.bf");
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(VMOptions::default(program.to_string()));
         vm.run();
 
         let should_be = include_str!("../brainfuck_programs/squares_output_correct.txt");
+        let should_be = dos2unix(should_be).to_string();
         assert_eq!(should_be, vm.output);
     }
 
@@ -586,7 +608,7 @@ mod tests {
     fn quine() {
         // Written by Erik Bosman
         let program = include_str!("../brainfuck_programs/quine.bf");
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(VMOptions::default(program.to_string()));
         vm.run();
 
         assert_eq!(program, vm.output);
@@ -595,8 +617,12 @@ mod tests {
     #[test]
     fn obscure() {
         let program = include_str!("../brainfuck_programs/obscure.bf");
-        let mut vm = VM::new(program);
-        vm.disable_comment_parsing(program);
+        let options = VMOptions {
+            program: program.to_string(),
+            disable_comments: true,
+            disable_optimizer: true,
+        };
+        let mut vm = VM::new(options);
         vm.run();
 
         assert_eq!("H\n", vm.output);
@@ -611,7 +637,7 @@ mod tests {
     #[test]
     fn fibonacci() {
         let program = include_str!("../brainfuck_programs/fibonacci.bf");
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(VMOptions::default(program.to_string()));
         vm.run();
 
         // yes those are wrong, but that's the programs fault. These numbers are from https://copy.sh/brainfuck which I assume is correct
@@ -628,5 +654,36 @@ mod tests {
             "1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 121, 98, 219, ...",
             vm.output
         );
+    }
+
+    #[test]
+    fn benchbf() {
+        let program = include_str!("../brainfuck_programs/bench.bf");
+        let options = VMOptions {
+            program: program.to_string(),
+            disable_comments: false,
+            disable_optimizer: false,
+        };
+        let mut vm = VM::new(options);
+        vm.run();
+
+        assert_eq!("ZYXWVUTSRQPONMLKJIHGFEDCBA\n", vm.output);
+    }
+
+    #[test]
+    fn mandel() {
+        let program = include_str!("../brainfuck_programs/mandel.bf");
+        let options = VMOptions {
+            program: program.to_string(),
+            disable_comments: false,
+            disable_optimizer: false,
+        };
+        let mut vm = VM::new(options);
+        vm.run();
+
+        let expected = include_str!("../brainfuck_programs/mandel_output_correct.txt");
+        let expected = dos2unix(expected).to_string();
+
+        assert_eq!(expected, vm.output);
     }
 }

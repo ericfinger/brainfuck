@@ -10,16 +10,16 @@ A brainfuck interpreter written in Rust.
 - [X] Refactor into mod
 - [X] Cache while-loop "jump points"
 - [X] Parse programs / allow comments in brainfuck files (ignore stuff after ';' and '#' when parsing)
+- [X] Better config management (Disable comments etc)
 - [X] Possible Optimizations (with toggle option?):
+- [X] UI, loading Programms at runtime
   - [X] Collect successive ops ("++++<" = "add(4)<" etc.) (Would save cycles)
   - [ ] ~~While Loop unroll? (Would eradicate ALL jumps and therefore the Program Vec + Jumpmap)~~
   - [ ] Simple pattern matching ("[-]" = "*mp = 0") (Manual labor)
   - [ ] ~~Remove never entered Loops (meh)~~
 - [ ] Better Error-handling, backtraces for when bf programs crash etc.
-- [ ] Better config management (Disable comments etc)
 - [ ] Dynamically grow Memory/prevent overflow of Memory Pointer (we can statically find the needed size by analysing the program?)
 - [ ] Write documentation
-- [ ] UI, loading Programms at runtime
 - [ ] Add support for different cell sizes
 - [ ] Add better debug-output/logging
 - [ ] Run profiler to check performance for bottlenecks
@@ -31,8 +31,7 @@ A brainfuck interpreter written in Rust.
 
 ### Current State/Issues:
 
-- Has no UI
-- Can therefore only run hard-coded brainfuck
+- Only has CLI
 - Has a default (hard-coded) & fixed memory-size of 1KB
 - A cell is a byte per brainfuck "spec" (8 bits)
 - Might not be the fastest (although with --release it's quite good already, IO is somewhat slow bc we print every char as per spec)

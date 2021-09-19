@@ -5,6 +5,11 @@ edition = "2018"
 
 [dependencies]
 rustc-hash = "1.1.0"
+structopt = "0.3"
+
+[dev-dependencies]
+
+newline-converter = "0.2"
 
 [profile.release]
 lto = true
