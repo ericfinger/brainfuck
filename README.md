@@ -11,8 +11,8 @@ A brainfuck interpreter written in Rust.
 - [X] Cache while-loop "jump points"
 - [X] Parse programs / allow comments in brainfuck files (ignore stuff after ';' and '#' when parsing)
 - [X] Better config management (Disable comments etc)
-- [X] Possible Optimizations (with toggle option?):
 - [X] UI, loading Programms at runtime
+- [X] Possible Optimizations (with toggle option?):
   - [X] Collect successive ops ("++++<" = "add(4)<" etc.) (Would save cycles)
   - [ ] ~~While Loop unroll? (Would eradicate ALL jumps and therefore the Program Vec + Jumpmap)~~
   - [ ] Simple pattern matching ("[-]" = "*mp = 0") (Manual labor)
