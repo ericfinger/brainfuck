@@ -1,4 +1,4 @@
-use std::io::{BufRead, Write};
+use std::io::BufRead;
 
 #[cfg(test)]
 use newline_converter::dos2unix;
@@ -114,10 +114,6 @@ impl VM {
                 b'.' => {
                     // putchar(*pointer)
                     print!("{}", self.data[self.mp] as char);
-                    std::io::stdout()
-                        .lock()
-                        .flush()
-                        .expect("Could not flush stdout");
 
                     self.pp += 1;
 
