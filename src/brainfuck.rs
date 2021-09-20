@@ -1,4 +1,4 @@
-use std::io::BufRead;
+use std::io::{BufRead, Write};
 
 #[cfg(test)]
 use newline_converter::dos2unix;
@@ -30,7 +30,6 @@ pub struct VM {
     mp: usize, // MemoryPointer
     data: Vec<u8>,
     jump_map: FxHashMap<usize, usize>,
-    // TODO: move these to some kind of config:
     ignore_comments: bool, // wether we should ignore comments (obscure.bf and hell.bf use ';' as non-comment chars)
     optimize: bool,
     #[cfg(test)]
@@ -114,6 +113,8 @@ impl VM {
                 b'.' => {
                     // putchar(*pointer)
                     print!("{}", self.data[self.mp] as char);
+
+                    std::io::stdout().flush().expect("Couldn't flush stdout.");
 
                     self.pp += 1;
 
