@@ -1,5 +1,5 @@
-use std::{fs::File, io::prelude::*, path::PathBuf};
 use clap::Parser;
+use std::{fs::File, io::prelude::*, path::PathBuf};
 
 mod brainfuck;
 
@@ -34,12 +34,9 @@ fn main() {
     };
 
     let mut program = String::new();
-    match file.read_to_string(&mut program) {
-        Err(why) => {
-            eprintln!("couldn't read {}: {}", display, why);
-            return;
-        }
-        Ok(_) => (),
+    if let Err(why) = file.read_to_string(&mut program) {
+        eprintln!("couldn't read {}: {}", display, why);
+        return;
     };
 
     let options = VMOptions {

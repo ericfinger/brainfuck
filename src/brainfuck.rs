@@ -131,7 +131,7 @@ impl VM {
                         .expect("Couldn't read from stdin");
                     self.data[self.mp] = input
                         .chars()
-                        .nth(0)
+                        .next()
                         .expect("No input could be read from stdin?")
                         as u8;
                     self.pp += 1;
@@ -236,7 +236,7 @@ impl VM {
         }
 
         if !self.check_brackets() {
-            Err("Could not parse Program: Mismatched Brackets!")?
+            return Err("Could not parse Program: Mismatched Brackets!".into());
         }
 
         Ok(())
@@ -252,9 +252,9 @@ impl VM {
                 b'[' => {
                     matching_bracket = None;
                     for (j, c) in self.program.iter().enumerate().skip(i + 1) {
-                        if *c == b'[' as u8 {
+                        if *c == b'[' {
                             count += 1;
-                        } else if *c == b']' as u8 {
+                        } else if *c == b']' {
                             if count == 0 {
                                 matching_bracket = Some(j);
                                 break;
@@ -278,9 +278,9 @@ impl VM {
                 b']' => {
                     let mut matching_bracket: bool = false;
                     for c in self.program.iter().rev().skip(self.program.len() - i) {
-                        if *c == ']' as u8 {
+                        if *c == b']' {
                             count += 1;
-                        } else if *c == '[' as u8 {
+                        } else if *c == b'[' {
                             if count == 0 {
                                 matching_bracket = true;
                                 break;
@@ -342,26 +342,21 @@ impl VM {
         current_pos: usize,
         operator: u8,
         instruction_mask: u8,
-        program: &Vec<u8>,
+        program: &[u8],
     ) -> usize {
         let mut skip = 0;
         if (program.len() - current_pos) > 1 {
             // makes sure we don't try to lookup program [i + 1] if that's oob
             if program[current_pos + 1] == operator {
-                let mut count;
-                match program
+                let mut count = match program
                     .iter()
                     .skip(current_pos)
                     .position(|op| *op != operator)
                 {
-                    Some(x) => {
-                        count = x;
-                    }
+                    Some(x) => x,
 
-                    None => {
-                        count = program.len() - current_pos;
-                    }
-                }
+                    None => program.len() - current_pos,
+                };
 
                 skip = count - 1;
 
