@@ -1,31 +1,28 @@
 use std::{fs::File, io::prelude::*, path::PathBuf};
-use structopt::StructOpt;
+use clap::Parser;
 
 mod brainfuck;
 
 use brainfuck::{VMOptions, VM};
 
-#[derive(Debug, StructOpt)]
-#[structopt(
-    name = "Brainfuck",
-    about = "A fast brainfuck interpreter written in rust."
-)]
+#[derive(Debug, Parser)]
+#[clap(version, long_about = "A fast brainfuck interpreter written in rust.")]
 struct Opt {
     /// Disables optimizer (might improve performance in small programs)
-    #[structopt(long)]
+    #[clap(long)]
     no_optimize: bool,
 
     /// Disables comment Characters (# and ;)
-    #[structopt(long)]
+    #[clap(long)]
     no_comments: bool,
 
     /// Input File
-    #[structopt(parse(from_os_str))]
+    #[clap(parse(from_os_str))]
     input: PathBuf,
 }
 
 fn main() {
-    let opt = Opt::from_args();
+    let opt = Opt::parse();
     let display = opt.input.display();
 
     let mut file = match File::open(&opt.input) {
