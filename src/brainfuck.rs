@@ -1,4 +1,5 @@
-use std::io::{BufRead, Write};
+#[allow(unused_imports)]
+use std::io::{BufRead, StdoutLock, Write};
 
 #[cfg(test)]
 use newline_converter::dos2unix;
@@ -24,7 +25,7 @@ impl VMOptions {
     }
 }
 
-pub struct VM {
+pub struct VM<'a> {
     program: Vec<u8>,
     pp: usize, // ProgramPointer
     mp: usize, // MemoryPointer
@@ -32,11 +33,13 @@ pub struct VM {
     jump_map: FxHashMap<usize, usize>,
     ignore_comments: bool, // wether we should ignore comments (obscure.bf and hell.bf use ';' as non-comment chars)
     optimize: bool,
+    #[allow(dead_code)]
+    stdout: StdoutLock<'a>,
     #[cfg(test)]
     output: String,
 }
 
-impl VM {
+impl<'a> VM<'a> {
     pub fn new(options: VMOptions) -> Self {
         let mut vm = Self {
             program: Vec::<u8>::new(),
@@ -46,6 +49,7 @@ impl VM {
             jump_map: FxHashMap::default(),
             ignore_comments: !options.disable_comments,
             optimize: !options.disable_optimizer,
+            stdout: std::io::stdout().lock(),
             #[cfg(test)]
             output: String::new(),
         };
@@ -112,9 +116,15 @@ impl VM {
 
                 b'.' => {
                     // putchar(*pointer)
-                    print!("{}", self.data[self.mp] as char);
+                    // print!("{}", self.data[self.mp] as char);
+                    #[cfg(not(test))]
+                    let _ = self.stdout
+                        .write(std::slice::from_mut(&mut self.data[self.mp]))
+                        .expect("could not write to stdout");
 
-                    std::io::stdout().flush().expect("Couldn't flush stdout.");
+                    // std::io::stdout().flush().expect("Couldn't flush stdout.");
+                    #[cfg(not(test))]
+                    self.stdout.flush().expect("Could not flush stdout");
 
                     self.pp += 1;
 
@@ -162,6 +172,7 @@ impl VM {
                         self.pp += 1;
                     }
                 }
+
                 _ => {
                     if self.program[self.pp] & 0b10000000 == 0 {
                         // Shouldn't happen after parsing
