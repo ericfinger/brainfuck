@@ -8,7 +8,7 @@ use rustc_hash::FxHashMap;
 
 #[derive(Debug)]
 pub struct VMOptions {
-    pub program: String,
+    pub program: Vec<u8>,
     pub disable_optimizer: bool,
     pub disable_comments: bool,
 }
@@ -16,7 +16,7 @@ pub struct VMOptions {
 #[cfg(test)]
 impl VMOptions {
     #[cfg(test)]
-    fn default(program: String) -> VMOptions {
+    fn default(program: Vec<u8>) -> VMOptions {
         VMOptions {
             program,
             disable_comments: false,
@@ -59,7 +59,7 @@ impl<'a> VM<'a> {
     }
 
     #[cfg(test)]
-    pub fn load(&mut self, program: String) {
+    pub fn load(&mut self, program: Vec<u8>) {
         self.program.clear();
         self.parse(program).expect("Couldn't parse program");
     }
@@ -75,16 +75,16 @@ impl<'a> VM<'a> {
 
     #[cfg(test)]
     #[allow(dead_code)]
-    pub fn enable_optimizer(&mut self, program: &str) {
+    pub fn enable_optimizer(&mut self, program: Vec<u8>) {
         self.optimize = true;
-        self.load(program.to_string());
+        self.load(program);
     }
 
     #[cfg(test)]
     #[allow(dead_code)]
-    pub fn disable_optimizer(&mut self, program: &str) {
+    pub fn disable_optimizer(&mut self, program: Vec<u8>) {
         self.optimize = false;
-        self.load(program.to_string());
+        self.load(program);
     }
 
     pub fn run(&mut self) {
@@ -219,24 +219,29 @@ impl<'a> VM<'a> {
 
     /// Parses the program and reports errors
     /// TODO: actually report errors & introduce Error Type
-    fn parse(&mut self, program: String) -> Result<(), Box<dyn std::error::Error>> {
+    fn parse(&mut self, program: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
         let mut parsed_program: Vec<u8> = Vec::new();
-        for line in program.lines() {
-            for c in line.chars() {
-                match c {
-                    '<' | '>' | '+' | '-' | '[' | ']' | '.' | ',' => {
-                        parsed_program.push(c as u8);
-                    }
-
-                    ';' | '#' => {
-                        // ignore until EOL after comment char
-                        if self.ignore_comments {
-                            break;
-                        }
-                    }
-
-                    _ => continue,
+        let mut ignore_to_line_end = false;
+        for c in program {
+            match c {
+                b'\n' | b'\r' => {
+                    ignore_to_line_end = false;
                 }
+
+                b'<' | b'>' | b'+' | b'-' | b'[' | b']' | b'.' | b',' => {
+                    if !ignore_to_line_end {
+                        parsed_program.push(c);
+                    }
+                }
+
+                b';' | b'#' => {
+                    // ignore until EOL after comment char
+                    if self.ignore_comments {
+                        ignore_to_line_end = true;
+                    }
+                }
+
+                _ => continue,
             }
         }
 
@@ -396,8 +401,8 @@ mod tests {
 
     #[test]
     fn reset() {
-        let program = include_str!("../brainfuck_programs/hello_world_smol.bf");
-        let mut vm = VM::new(VMOptions::default(program.to_string()));
+        let program = include_bytes!("../brainfuck_programs/hello_world_smol.bf");
+        let mut vm = VM::new(VMOptions::default(program.to_vec()));
         let program_pre_reset = vm.get_program();
 
         vm.run();
@@ -420,22 +425,21 @@ mod tests {
 
     #[test]
     fn reset_reuse() {
-        let program = include_str!("../brainfuck_programs/hello_world_smol.bf");
-        let mut vm = VM::new(VMOptions::default(program.to_string()));
-        vm.load(program.to_string());
+        let program = include_bytes!("../brainfuck_programs/hello_world_smol.bf").to_vec();
+        let mut vm = VM::new(VMOptions::default(program));
         vm.run();
 
         assert_eq!("hello world", vm.output);
 
         vm.reset();
-        let program = include_str!("../brainfuck_programs/yapi_4.bf");
-        vm.load(program.to_string());
+        let program = include_bytes!("../brainfuck_programs/yapi_4.bf").to_vec();
+        vm.load(program);
         vm.run();
     }
 
     #[test]
     fn no_program() {
-        let mut vm = VM::new(VMOptions::default("".to_string()));
+        let mut vm = VM::new(VMOptions::default(Vec::new()));
         vm.run();
 
         assert!(vm.output.is_empty() && vm.pp == 0 && vm.mp == 0);
@@ -451,32 +455,32 @@ mod tests {
 
     #[test]
     fn layered_brackets() {
-        let program = include_str!("../brainfuck_programs/layeredBracketsTest.bf");
-        let mut vm = VM::new(VMOptions::default(program.to_string()));
+        let program = include_bytes!("../brainfuck_programs/layeredBracketsTest.bf").to_vec();
+        let mut vm = VM::new(VMOptions::default(program));
         vm.run();
     }
 
     #[test]
     #[should_panic]
     fn open_ended_while() {
-        let program = include_str!("../brainfuck_programs/openEndedWhile.bf");
-        let mut vm = VM::new(VMOptions::default(program.to_string()));
+        let program = include_bytes!("../brainfuck_programs/openEndedWhile.bf").to_vec();
+        let mut vm = VM::new(VMOptions::default(program));
         vm.run();
     }
 
     #[test]
     #[should_panic]
     fn headless_while() {
-        let program = include_str!("../brainfuck_programs/headlessWhile.bf");
-        let mut vm = VM::new(VMOptions::default(program.to_string()));
+        let program = include_bytes!("../brainfuck_programs/headlessWhile.bf").to_vec();
+        let mut vm = VM::new(VMOptions::default(program));
         vm.run();
     }
 
     #[test]
     #[should_panic]
     fn mem_pointer_underflow() {
-        let program = include_str!("../brainfuck_programs/underflowMP.bf");
-        let mut vm = VM::new(VMOptions::default(program.to_string()));
+        let program = include_bytes!("../brainfuck_programs/underflowMP.bf").to_vec();
+        let mut vm = VM::new(VMOptions::default(program));
         vm.run();
     }
 
@@ -484,15 +488,15 @@ mod tests {
     #[should_panic]
     fn mem_pointer_overflow() {
         // TODO: replace this (with an "out of memory check") when we implement dynamic memory sizes
-        let program = include_str!("../brainfuck_programs/overflowMP.bf");
-        let mut vm = VM::new(VMOptions::default(program.to_string()));
+        let program = include_bytes!("../brainfuck_programs/overflowMP.bf").to_vec();
+        let mut vm = VM::new(VMOptions::default(program));
         vm.run();
     }
 
     #[test]
     fn comment_semicolon_ignored() {
-        let program = include_str!("../brainfuck_programs/comments_ignored_semicolon.bf");
-        let mut vm = VM::new(VMOptions::default(program.to_string()));
+        let program = include_bytes!("../brainfuck_programs/comments_ignored_semicolon.bf").to_vec();
+        let mut vm = VM::new(VMOptions::default(program));
         vm.run();
 
         assert_eq!("!", vm.output);
@@ -500,8 +504,8 @@ mod tests {
 
     #[test]
     fn comment_poundsign_ignored() {
-        let program = include_str!("../brainfuck_programs/comments_ignored_poundsign.bf");
-        let mut vm = VM::new(VMOptions::default(program.to_string()));
+        let program = include_bytes!("../brainfuck_programs/comments_ignored_poundsign.bf").to_vec();
+        let mut vm = VM::new(VMOptions::default(program));
         vm.run();
 
         assert_eq!("!", vm.output);
@@ -509,8 +513,8 @@ mod tests {
 
     #[test]
     fn comment_semipound_ignored() {
-        let program = include_str!("../brainfuck_programs/comments_ignored_semipound.bf");
-        let mut vm = VM::new(VMOptions::default(program.to_string()));
+        let program = include_bytes!("../brainfuck_programs/comments_ignored_semipound.bf").to_vec();
+        let mut vm = VM::new(VMOptions::default(program));
         vm.run();
 
         assert_eq!("!", vm.output);
@@ -518,9 +522,9 @@ mod tests {
 
     #[test]
     fn comment_not_ignored() {
-        let program = include_str!("../brainfuck_programs/comments_ignored_semipound.bf");
+        let program = include_bytes!("../brainfuck_programs/comments_ignored_semipound.bf").to_vec();
         let options = VMOptions {
-            program: program.to_string(),
+            program: program,
             disable_comments: true,
             disable_optimizer: true,
         };
@@ -532,17 +536,17 @@ mod tests {
 
     #[test]
     fn last_char_is_plus() {
-        let program = include_str!("../brainfuck_programs/ends_on_plus.bf");
-        let mut vm = VM::new(VMOptions::default(program.to_string()));
+        let program = include_bytes!("../brainfuck_programs/ends_on_plus.bf").to_vec();
+        let mut vm = VM::new(VMOptions::default(program.clone()));
         vm.enable_optimizer(program);
         vm.run();
     }
 
     #[test]
     fn optimizer() {
-        let program = include_str!("../brainfuck_programs/optimize_me.bf");
+        let program = include_bytes!("../brainfuck_programs/optimize_me.bf").to_vec();
         let options = VMOptions {
-            program: program.to_string(),
+            program: program,
             disable_optimizer: false,
             disable_comments: false,
         };
@@ -558,8 +562,8 @@ mod tests {
 
     #[test]
     fn hello_world() {
-        let program = include_str!("../brainfuck_programs/hello_world.bf");
-        let mut vm = VM::new(VMOptions::default(program.to_string()));
+        let program = include_bytes!("../brainfuck_programs/hello_world.bf").to_vec();
+        let mut vm = VM::new(VMOptions::default(program));
         vm.run();
 
         // Super fucking weird, why tf is it \n\r??? It's from https://de.wikipedia.org/wiki/Brainfuck
@@ -568,8 +572,8 @@ mod tests {
 
     #[test]
     fn hello_world_smol() {
-        let program = include_str!("../brainfuck_programs/hello_world_smol.bf");
-        let mut vm = VM::new(VMOptions::default(program.to_string()));
+        let program = include_bytes!("../brainfuck_programs/hello_world_smol.bf").to_vec();
+        let mut vm = VM::new(VMOptions::default(program));
         vm.run();
 
         assert_eq!("hello world", vm.output);
@@ -578,9 +582,9 @@ mod tests {
     #[test]
     fn hell() {
         // "Hello world from hell": https://github.com/rdebath/Brainfuck/blob/master/bitwidth.b
-        let program = include_str!("../brainfuck_programs/hell.bf");
+        let program = include_bytes!("../brainfuck_programs/hell.bf").to_vec();
         let options = VMOptions {
-            program: program.to_string(),
+            program: program.clone(),
             disable_comments: true,
             disable_optimizer: true,
         };
@@ -598,8 +602,8 @@ mod tests {
 
     #[test]
     fn squares() {
-        let program = include_str!("../brainfuck_programs/squares.bf");
-        let mut vm = VM::new(VMOptions::default(program.to_string()));
+        let program = include_bytes!("../brainfuck_programs/squares.bf").to_vec();
+        let mut vm = VM::new(VMOptions::default(program));
         vm.run();
 
         let should_be = include_str!("../brainfuck_programs/squares_output_correct.txt");
@@ -610,18 +614,19 @@ mod tests {
     #[test]
     fn quine() {
         // Written by Erik Bosman
-        let program = include_str!("../brainfuck_programs/quine.bf");
-        let mut vm = VM::new(VMOptions::default(program.to_string()));
+        let program = include_bytes!("../brainfuck_programs/quine.bf").to_vec();
+        let program2 = include_str!("../brainfuck_programs/quine.bf");
+        let mut vm = VM::new(VMOptions::default(program));
         vm.run();
 
-        assert_eq!(program, vm.output);
+        assert_eq!(program2, vm.output);
     }
 
     #[test]
     fn obscure() {
-        let program = include_str!("../brainfuck_programs/obscure.bf");
+        let program = include_bytes!("../brainfuck_programs/obscure.bf").to_vec();
         let options = VMOptions {
-            program: program.to_string(),
+            program: program.clone(),
             disable_comments: true,
             disable_optimizer: true,
         };
@@ -639,8 +644,8 @@ mod tests {
 
     #[test]
     fn fibonacci() {
-        let program = include_str!("../brainfuck_programs/fibonacci.bf");
-        let mut vm = VM::new(VMOptions::default(program.to_string()));
+        let program = include_bytes!("../brainfuck_programs/fibonacci.bf").to_vec();
+        let mut vm = VM::new(VMOptions::default(program.clone()));
         vm.run();
 
         // yes those are wrong, but that's the programs fault. These numbers are from https://copy.sh/brainfuck which I assume is correct
@@ -661,9 +666,9 @@ mod tests {
 
     #[test]
     fn benchbf() {
-        let program = include_str!("../brainfuck_programs/bench.bf");
+        let program = include_bytes!("../brainfuck_programs/bench.bf").to_vec();
         let options = VMOptions {
-            program: program.to_string(),
+            program: program,
             disable_comments: false,
             disable_optimizer: false,
         };
@@ -675,9 +680,9 @@ mod tests {
 
     #[test]
     fn mandel() {
-        let program = include_str!("../brainfuck_programs/mandel.bf");
+        let program = include_bytes!("../brainfuck_programs/mandel.bf").to_vec();
         let options = VMOptions {
-            program: program.to_string(),
+            program: program,
             disable_comments: false,
             disable_optimizer: false,
         };

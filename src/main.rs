@@ -33,8 +33,8 @@ fn main() {
         Ok(file) => file,
     };
 
-    let mut program = String::new();
-    if let Err(why) = file.read_to_string(&mut program) {
+    let mut program = Vec::new();
+    if let Err(why) = file.read_to_end(&mut program) {
         eprintln!("couldn't read {}: {}", display, why);
         return;
     };
