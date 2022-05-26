@@ -1,5 +1,5 @@
 use clap::Parser;
-use std::{fs::File, io::prelude::*, path::PathBuf};
+use std::{fs::File, path::PathBuf};
 
 mod brainfuck;
 
@@ -25,7 +25,7 @@ fn main() {
     let opt = Opt::parse();
     let display = opt.input.display();
 
-    let mut file = match File::open(&opt.input) {
+    let file = match File::open(&opt.input) {
         Err(why) => {
             eprintln!("couldn't open {}: {}", display, why);
             return;
@@ -33,14 +33,8 @@ fn main() {
         Ok(file) => file,
     };
 
-    let mut program = Vec::new();
-    if let Err(why) = file.read_to_end(&mut program) {
-        eprintln!("couldn't read {}: {}", display, why);
-        return;
-    };
-
     let options = VMOptions {
-        program,
+        program: file,
         disable_optimizer: opt.no_optimize,
         disable_comments: opt.no_comments,
     };
